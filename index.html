@@ -1,0 +1,268 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+<link rel="stylesheet" type="text/css" href="http://code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css"/>
+<link rel="stylesheet" type="text/css" href="mystyle.css"/>
+<script type="text/javascript" src="http://code.jquery.com/jquery-1.8.3.js"></script>
+<script type="text/javascript" src="http://code.jquery.com/ui/1.9.2/jquery-ui.js"></script>
+<script type="text/javascript">
+
+var editMode = false;
+
+function init() {
+	// data
+	//  muster[]
+	//   title
+	//   person[]
+	//    name
+	//    status
+	//  lastMuster
+}
+
+function saveData() {
+	localStorage.data = JSON.stringify(data);
+}
+
+function loadData() {
+	
+	if (typeof localStorage.data == 'undefined' || localStorage.data == null)
+		data = {};
+	else 
+		data = JSON.parse(localStorage.data);
+	
+	if (typeof data.lastMuster != 'undefined' && data.lastMuster != null)
+		currentMuster = data.lastMuster;
+	
+	if (typeof data.muster == 'undefined' || data.muster.length == 0)
+		createMuster('새 명렬표');
+	
+}
+
+function createMuster(title) {
+	if (typeof data.muster == 'undiefined' || data.muster == null)
+		data.muster = [];
+	
+	idx = data.muster.length;
+	data.muster[idx] = {};
+	data.muster[idx].title = title;
+	data.muster[idx].person = [];
+	for (var i = 0; i < 40; ++i) {
+		data.muster[idx].person[i] = { name:'', status:0 };
+		
+	}
+	currentMuster = data.lastMuster = idx;
+	
+	saveData();
+} 
+
+function getName(i) {
+	try {
+		return data.muster[currentMuster].person[i].name;
+	} catch (err) {
+		return '';
+	}
+}
+
+function getStatus(i) {
+	try {
+		return data.muster[currentMuster].person[i].status;
+	} catch (err) {
+		return 0;
+	}
+}
+
+function setStatus(i, s) {
+	data.muster[currentMuster].person[i].status = s;
+	saveData();
+}
+
+function getStatusColor(s) {
+	switch (s) {
+	case 0:
+		return '#fcaf17';
+	case 1:
+		return '#008bbe';
+	case 2:
+		return '#89c709';
+	}
+	return '#72675b';
+}
+
+function makeMusterSelector() {
+	select = $('<select></select>').attr('id', 'muster_selector');
+	for (var i in data.muster) {
+		title = data.muster[i].title;
+		option = $('<option>').val(i).text(title);
+		if (i == currentMuster)
+			option.attr('selected', 'selected');
+		select.append(option);
+	}
+	select.append($('<option>').val(-1).text('<새로 만들기>'));
+	select.change(function() {
+		idx = $('#muster_selector').val();
+		
+		if (idx == -1) {
+			createMuster('새 명렬표');
+			setEditMode(true);
+		} else {
+			currentMuster = data.lastMuster = idx;
+			saveData();
+			makeMuster(false);
+		}
+	});
+	$('#title').empty().append(select);
+}
+
+function makeMusterTitleEditor() {
+	input = $('<input>').attr('id', 'input_title').attr('type', 'text').val(data.muster[currentMuster].title);
+	$('#title').empty().append(input);
+}
+
+function makeMuster(editable) {
+	var COLUMNS = 4;
+	var ROWS = 10;
+	
+	nameTable = $('<table></table>');
+	for (var row = 0; row < ROWS; row++) {
+		tableRow = $('<tr></tr>');
+		for (var col = 0; col < COLUMNS; col++) {
+			index = row*COLUMNS+col;
+			tableCell = $('<td></td>');
+			name = getName(index);
+			
+			if (editable) {
+				input = $('<input>').addClass('name').attr('type', 'text').attr('data-index', index).val(name);
+				tableCell.append(input);
+			} else {
+				tableCell.addClass('name').attr('data-index', index).text(name);
+				tableCell.css('background-color', getStatusColor(getStatus(index)));
+				tableCell.css('color', 'white');
+				tableCell.click(function() {
+					var idx = $(this).attr('data-index');
+					console.log(idx + ' : ' +getName(idx) + '['+getStatus(idx)+']');
+					if (getName(idx) == '') {
+						return;
+					}
+					var status = getStatus(idx);
+					status = (status+1)%3;
+					setStatus(idx, status);
+					$(this).css('background-color', getStatusColor(status));
+				});
+			}
+			tableRow.append(tableCell);
+		}
+		nameTable.append(tableRow);
+	}
+	$('#main_content').empty().append(nameTable);
+}
+
+function finishEditMode() {
+	data.muster[currentMuster].title = $('#input_title').val();
+	
+	$('.name').each(function(index, value) {
+		idx = $(this).attr('data-index');
+		name = $(this).val();
+		data.muster[currentMuster].person[idx].name = name;
+			
+		if (name != null && name != '') {
+			if (getStatus(idx) == null || getStatus(idx) == '')
+				setStatus(idx, 0);
+		} else {
+			setStatus(idx, '');
+		}
+	});
+	
+	saveData();
+}
+
+function setEditMode(mode) {
+	if (mode) {
+		editMode = true;
+		$('#leftButton').text('완료');
+		$('#rightButton').text('삭제');
+		makeMuster(true);
+		makeMusterTitleEditor();
+	} else {
+		makeMuster(false);
+		makeMusterSelector();
+		
+		editMode = false;
+		$('#leftButton').text('편집');
+		$('#rightButton').text('초기화');
+	}
+}
+
+function deleteMuster(idx) {
+	data.muster.splice(idx, 1);
+	currentMuster = data.lastMuster = 0;
+	saveData();
+
+	if (data.muster.length == 0)
+		createMuster('새 명렬표');
+	
+	setEditMode(false);
+}
+
+function resetStatus() {
+	for (var i in data.muster[currentMuster].person) {
+		setStatus(i,0);
+	}
+	makeMuster(false);
+}
+
+function clickLeftButton() {
+	if (editMode)
+		finishEditMode();
+	
+	setEditMode(!editMode);
+}
+
+function clickRightButton() {
+	if (editMode) {
+		$("<div></div>").dialog({
+			autoOpen: true,
+		    title: '삭제하시겠습니까?',
+		    modal:true,
+		    buttons: { 
+		    	'예' : function() {
+		    		deleteMuster(currentMuster);
+		    		$(this).dialog("close");
+				},
+				'아니오' : function() {
+		    		$(this).dialog("close");
+				} 
+		    }
+		});
+	} else {
+		resetStatus();
+	}
+}
+
+$(document).ready(function() {
+	$('#leftButton').click(function() {
+		clickLeftButton();	
+	});
+	
+	$('#rightButton').click(function() {
+		clickRightButton();	
+	});
+	
+	loadData();
+	makeMuster(false);
+	makeMusterSelector();
+});
+
+</script>
+<title>명렬표</title>
+</head>
+<body>
+<div id="menu">
+<button id="leftButton">편집</button>
+<div id="title"></div>
+<button id="rightButton">초기화</button>
+</div>
+<div id="main_content"></div>
+</body>
+</html>
